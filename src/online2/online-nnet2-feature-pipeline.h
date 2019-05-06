@@ -78,6 +78,11 @@ struct OnlineNnet2FeaturePipelineConfig {
   // compute-and-process-kaldi-pitch-feats.
   std::string online_pitch_config;
 
+  //zhangfeifan start
+  std::string cmvn_config;
+  std::string global_cmvn_stats_rxfilename;
+  //zhangfeifan end
+
   // The configuration variables in ivector_extraction_config relate to the
   // iVector extractor and options related to it, see type
   // OnlineIvectorExtractionConfig.
@@ -106,6 +111,13 @@ struct OnlineNnet2FeaturePipelineConfig {
     opts->Register("online-pitch-config", &online_pitch_config, "Configuration "
                    "file for online pitch features, if --add-pitch=true (e.g. "
                    "conf/online_pitch.conf)");
+    //zhangfeifan start
+    opts->Register("cmvn-config", &cmvn_config, "Configuration class "
+                   "file for online CMVN features (e.g. conf/online_cmvn.conf)");
+    opts->Register("global-cmvn-stats", &global_cmvn_stats_rxfilename,
+                   "(Extended) filename for global CMVN stats, e.g. obtained "
+                   "from 'matrix-sum scp:data/train/cmvn.scp -'");
+    //zhangfeifan end
     opts->Register("ivector-extraction-config", &ivector_extraction_config,
                    "Configuration file for online iVector extraction, "
                    "see class OnlineIvectorExtractionConfig in the code");
@@ -143,6 +155,11 @@ struct OnlineNnet2FeaturePipelineInfo {
   PitchExtractionOptions pitch_opts;  // Options for pitch extraction, if done.
   ProcessPitchOptions pitch_process_opts;  // Options for pitch post-processing
 
+  //zhangfeifan start
+  OnlineCmvnOptions cmvn_opts;  // Options for online CMN/CMVN computation.
+  std::string global_cmvn_stats_rxfilename;  // Filename used for reading global
+                                             // CMVN stats
+  //zhangfeifan end
 
   // If the user specified --ivector-extraction-config, we assume we're using
   // iVectors as an extra input to the neural net.  Actually, we don't
@@ -225,6 +242,15 @@ class OnlineNnet2FeaturePipeline: public OnlineFeatureInterface {
   void GetAdaptationState(
       OnlineIvectorExtractorAdaptationState *adaptation_state) const;
 
+  //zhangfeifan start
+  void FreezeCmvn();  // stop it from moving further (do this when you start
+                      // using fMLLR). This will crash if NumFramesReady() == 0.
+
+  /// Set the CMVN state to a particular value (will generally be
+  /// called after Copy().
+  void SetCmvnState(const OnlineCmvnState &cmvn_state);
+  void GetCmvnState(OnlineCmvnState *cmvn_state);
+  //zhangfeifan end
 
   /// Accept more data to process.  It won't actually process it until you call
   /// GetFrame() [probably indirectly via (decoder).AdvanceDecoding()], when you
@@ -268,7 +294,10 @@ class OnlineNnet2FeaturePipeline: public OnlineFeatureInterface {
  private:
 
   const OnlineNnet2FeaturePipelineInfo &info_;
-
+  //zhangfeifan start
+  Matrix<BaseFloat> global_cmvn_stats_;  // Global CMVN stats.
+  OnlineCmvn *cmvn_;
+  //zhangfeifan end
   OnlineBaseFeature *base_feature_;        // MFCC/PLP/filterbank
 
   OnlinePitchFeature *pitch_;              // Raw pitch, if used
